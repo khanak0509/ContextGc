@@ -4,22 +4,30 @@
   <img src="https://readme-typing-svg.demolab.com?font=Fira+Code&pause=1000&color=2ecc71&width=435&lines=ContextGC;Automatic+Context+Window+Manager;Never+hit+a+token+limit+again!" alt="Typing Animation" />
 </p>
 
-If your chatbot runs long enough, it will eventually hit its token limit. To prevent the LLM from forgetting important facts (like the user's name or what was discussed 10 turns ago), ContextGC intercepts your message array before it hits the LLM, evicts old messages, extracts the core facts into a persistent state, and uses BM25 + Vector Search to pull deeply archived messages back into context exactly when the user asks about them.
+<p align="center">
+  <img src="https://img.shields.io/badge/Python-3.9%2B-blue?style=for-the-badge&logo=python" alt="Python Badge"/>
+  <img src="https://img.shields.io/badge/Powered_by-Ollama-white?style=for-the-badge" alt="Ollama Badge"/>
+  <img src="https://img.shields.io/badge/100%25-Local-success?style=for-the-badge" alt="Local Badge"/>
+  <img src="https://img.shields.io/badge/LangChain-Compatible-orange?style=for-the-badge" alt="LangChain Badge"/>
+  <img src="https://img.shields.io/badge/LangGraph-Ready-blueviolet?style=for-the-badge" alt="LangGraph Badge"/>
+</p>
 
-## Features
+> **If your chatbot runs long enough, it will eventually hit its token limit.** To prevent the LLM from forgetting important facts (like the user's name or what was discussed 10 turns ago), ContextGC intercepts your message array before it hits the LLM, evicts old messages, extracts the core facts into a persistent state, and uses BM25 + Vector Search to pull deeply archived messages back into context exactly when the user asks about them.
+
+## ✨ Features
 
 - **Fact Extraction:** Summarizes and saves core entities, topics, and user preferences into a structured JSON state.
 - **Smart Eviction:** Triggers only when you hit a memory watermark, cleanly evicting old messages while protecting recent chat flow.
 - **Hybrid Recall:** Combines BM25 (keyword search) and Vector Search (semantic similarity) to retrieve evicted messages with high precision.
 - **100% Local by Default:** Built to run perfectly offline with Ollama models (`llama3.2:3b`, `qwen2.5`, etc.).
 
-## Performance & Benchmarks
+## ⚡ Performance & Benchmarks
 ContextGC is designed to be completely invisible to the user until an eviction is necessary:
 - **Token Counting Overhead**: `< 0.01 seconds` (Runs on every turn)
 - **Hybrid Recall (BM25 + Vector)**: `< 0.10 seconds` (Runs on every turn)
 - **State Extraction & Compression**: `~1.5 - 3.0 seconds` (Only runs when the watermark is hit, entirely dependent on your local LLM speed)
 
-## Installation
+## 📦 Installation
 
 ```bash
 git clone https://github.com/khanak0509/ContextGc.git
@@ -33,7 +41,7 @@ Make sure you have Ollama installed and your preferred model pulled:
 ollama pull qwen2.5
 ```
 
-## Quick Start (Core API)
+## 🚀 Quick Start (Core API)
 
 ContextGC is entirely framework-agnostic. At its core, it just takes a list of standard python dictionaries and returns a cleaned list of dictionaries. Here is how you use the core `EvictionOrchestrator` if you are using raw LLM APIs (like `openai` or `ollama`):
 
@@ -62,7 +70,7 @@ clean_messages = gc.process(messages)
 # response = openai.chat.completions.create(model="gpt-4o", messages=clean_messages)
 ```
 
-## High-Level Integrations
+## 🔌 High-Level Integrations
 
 ContextGC provides native wrappers for LangChain and LangGraph to eliminate boilerplate. Completely working, interactive demo files for both frameworks can be found in the repository (`demo_langchain.py` and `demo_langgraph.py`).
 
@@ -108,7 +116,7 @@ workflow.add_edge("contextgc", "agent")
 workflow.add_edge("agent", END)
 ```
 
-## How It Works Under the Hood
+## ⚙️ How It Works Under the Hood
 
 When you call `gc.process(messages)`:
 
@@ -117,7 +125,7 @@ When you call `gc.process(messages)`:
 3. **Eviction:** If you are over the limit, it evicts older messages, runs them through the LLM to extract new facts, and archives the raw text into an in-memory vector store and BM25 index.
 4. **Recall:** It looks at the user's latest query. If the query matches anything in the archive, it injects those specific past messages back into the context window as a `RECALLED MEMORY CONTEXT` block.
 
-## Architecture Explained
+## 🧠 Architecture Explained
 
 At a high level, ContextGC behaves like an operating system's memory pager, but for LLM context windows:
 
@@ -128,7 +136,7 @@ At a high level, ContextGC behaves like an operating system's memory pager, but 
 
 ContextGC is completely framework-agnostic. Because it just takes a list of standard dictionary messages and returns a modified list of messages, you can easily plug it into LangChain, LangGraph, LlamaIndex, or raw OpenAI/Ollama API calls.
 
-## Requirements
+## 🛠 Requirements
 - `langchain_ollama`
 - `langchain_core`
 - `rank_bm25`
