@@ -142,7 +142,7 @@ When you call `gc.process(messages)`:
 3. **Eviction:** If you are over the limit, it evicts older messages, runs them through the LLM to extract new facts, and archives the raw text into an in-memory vector store and BM25 index.
 4. **Recall:** It looks at the user's latest query. If the query matches anything in the archive, it injects those specific past messages back into the context window as a `RECALLED MEMORY CONTEXT` block.
 
-## 🧠 Architecture Explained
+## 🧠 Architecture
 
 At a high level, ContextGC behaves like an operating system's memory pager, but for LLM context windows:
 
