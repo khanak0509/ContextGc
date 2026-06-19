@@ -1,15 +1,8 @@
 # ContextGC
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/khanak0509/ContextGc/main/demo.gif" width="600" alt="ContextGC Animated Demo">
+  <img src="https://readme-typing-svg.demolab.com?font=Fira+Code&pause=1000&color=2ecc71&width=435&lines=ContextGC;Automatic+Context+Window+Manager;Never+hit+a+token+limit+again!" alt="Typing Animation" />
 </p>
-
-<p align="center">
-  <a href="https://github.com/khanak0509/ContextGc/stargazers"><img src="https://img.shields.io/github/stars/khanak0509/ContextGc?style=for-the-badge&color=yellow" alt="Stars Badge"/></a>
-  <a href="https://github.com/khanak0509/ContextGc/network/members"><img src="https://img.shields.io/github/forks/khanak0509/ContextGc?style=for-the-badge&color=orange" alt="Forks Badge"/></a>
-  <a href="https://github.com/khanak0509/ContextGc/issues"><img src="https://img.shields.io/github/issues/khanak0509/ContextGc?style=for-the-badge&color=red" alt="Issues Badge"/></a>
-  <a href="https://github.com/khanak0509/ContextGc/pulls"><img src="https://img.shields.io/github/issues-pr/khanak0509/ContextGc?style=for-the-badge&color=blue" alt="Pull Requests Badge"/></a>
-</p> 
 
 If your chatbot runs long enough, it will eventually hit its token limit. To prevent the LLM from forgetting important facts (like the user's name or what was discussed 10 turns ago), ContextGC intercepts your message array before it hits the LLM, evicts old messages, extracts the core facts into a persistent state, and uses BM25 + Vector Search to pull deeply archived messages back into context exactly when the user asks about them.
 
