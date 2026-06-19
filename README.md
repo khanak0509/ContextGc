@@ -23,6 +23,7 @@
 
 ## ⚡ Performance & Benchmarks
 ContextGC is designed to be completely invisible to the user until an eviction is necessary:
+- **Bounded Context Growth**: Guarantees your message array will *never* exceed the token limit you set, no matter how long the conversation lasts (e.g., 10,000+ words are cleanly archived to stay within a strict 2000 token limit).
 - **Token Counting Overhead**: `< 0.01 seconds` (Runs on every turn)
 - **Hybrid Recall (BM25 + Vector)**: `< 0.10 seconds` (Runs on every turn)
 - **State Extraction & Compression**: `~1.5 - 3.0 seconds` (Only runs when the watermark is hit, entirely dependent on your local LLM speed)
