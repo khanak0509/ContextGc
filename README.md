@@ -41,7 +41,7 @@ We simulated long 50-turn and 100-turn conversations, randomly injected facts, a
 ### 2. Deep State Extraction Quality
 State extraction depends entirely on the intelligence of your chosen local LLM. We generated twenty **50-turn conversations** where a single fact was buried deep in the noise, forced a massive block eviction, and measured what percentage of core facts survived the summarization process:
 - **`qwen2.5:latest` (7B)**: `100.0%` extraction accuracy (Flawless)
-- **`llama3.2:3b` (3B)**: `85.0%` extraction accuracy (Acceptable, but larger models are recommended for critical memory)
+- **`llama3.2:3b` (3B)**: `45.0%` extraction accuracy (Significant degradation. We strongly recommend 7B+ models for highly robust summarization)
 
 ## 📦 Installation
 
