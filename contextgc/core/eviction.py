@@ -5,7 +5,6 @@ import time
 from langchain_core.vectorstores import InMemoryVectorStore
 from contextgc.core.scorer import MessageScorer
 from contextgc.core.archive import MessageArchive
-from contextgc.core.compressor import MessageCompressor
 from contextgc.core.state import CoreState
 
 limits_path = os.path.join(os.path.dirname(__file__), "..", "model_limits.json")
@@ -33,7 +32,6 @@ class EvictionOrchestrator:
         self.current_goal = "general assistance"
         self.total_evictions = 0
         self.total_recalls = 0
-        self.compressor = MessageCompressor(model)
 
         if vectorstore is None:
             scorer = MessageScorer()
