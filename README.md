@@ -33,15 +33,15 @@ ContextGC is designed to be completely invisible to the user until an eviction i
 ContextGC has been rigorously benchmarked using completely synthetic local evaluations (available in the `eval/` directory).
 
 ### 1. Adversarial Hybrid Recall Precision
-We simulated long 50-turn and 100-turn conversations, randomly injected facts, and forced an eviction. We then aggressively queried for the deleted facts using **adversarial queries** (zero keyword overlap/paraphrase gap) and injected distracting facts to confuse the retriever.
+Long 50-turn and 100-turn conversations were simulated by randomly injecting facts and forcing an eviction. The deleted facts were then aggressively queried using **adversarial queries** (zero keyword overlap/paraphrase gap), and distracting facts were injected to confuse the retriever.
 - **Recall@1**: `70.0%` (Even with zero keyword overlap and active distractors, the exact deleted fact was the #1 ranked message 70% of the time)
 - **Recall@3**: `100.0%` (The deleted fact was **never** lost; it always appeared within the top 3 results)
 - **Mean Reciprocal Rank (MRR)**: `0.833`
 
 ### 2. Deep State Extraction Quality
-State extraction depends entirely on the intelligence of your chosen local LLM. We generated twenty **50-turn conversations** where a single fact was buried deep in the noise, forced a massive block eviction, and measured what percentage of core facts survived the summarization process:
+State extraction depends entirely on the intelligence of your chosen local LLM. Twenty **50-turn conversations** were generated where a single fact was buried deep in the noise. A massive block eviction was forced, and the percentage of core facts that survived the summarization process was measured:
 - **`qwen2.5:latest` (7B)**: `100.0%` extraction accuracy (Flawless)
-- **`llama3.2:3b` (3B)**: `45.0%` extraction accuracy (Significant degradation. We strongly recommend 7B+ models for highly robust summarization)
+- **`llama3.2:3b` (3B)**: `45.0%` extraction accuracy (Significant degradation. 7B+ models are strongly recommended for highly robust summarization)
 
 ## 📦 Installation
 
@@ -148,7 +148,7 @@ At a high level, ContextGC behaves like an operating system's memory pager, but 
 
 1. **EvictionOrchestrator**: The central brain. It monitors the total token count of your conversation array. When the tokens hit the `watermark` threshold (e.g. 80% of max capacity), it triggers an eviction.
 2. **CoreState Extraction**: Instead of just deleting old messages, the orchestrator passes the evicted messages to the LLM behind the scenes. It asks the LLM to extract hard facts, user preferences, and topics, which are then saved to a lightweight persistent JSON file (`memory_state.json`).
-3. **MessageArchive (BM25 + VectorStore)**: The raw text of the evicted messages is embedded and stored in a lightweight, built-in vector database (zero external dependencies). Simultaneously, we use `rank_bm25` to index the exact keywords. 
+3. **MessageArchive (BM25 + VectorStore)**: The raw text of the evicted messages is embedded and stored in a lightweight, built-in vector database (zero external dependencies). Simultaneously, `rank_bm25` is used to index the exact keywords. 
 4. **Hybrid Recall**: When the user asks a new question, ContextGC searches both the BM25 index (for exact keyword matches) and the VectorStore (for semantic meaning). If a strong match is found in the graveyard of evicted messages, it pulls them out and temporarily injects them back into the top of your prompt!
 
 ContextGC is completely framework-agnostic. Because it just takes a list of standard dictionary messages and returns a modified list of messages, you can easily plug it into LangChain, LangGraph, LlamaIndex, or raw OpenAI/Ollama API calls.
