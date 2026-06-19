@@ -1,4 +1,4 @@
 from contextgc.integrations.langchain import ContextGCMemory
-from contextgc.integrations.langgraph import contextgc_node
+from contextgc.integrations.langgraph import ContextGCGraphNode
 
-__all__ = ["ContextGCMemory", "contextgc_node"]
+__all__ = ["ContextGCMemory", "ContextGCGraphNode"]

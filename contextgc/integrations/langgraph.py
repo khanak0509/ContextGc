@@ -1,54 +1,59 @@
 import time
 import uuid
 
+from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from contextgc.core.eviction import EvictionOrchestrator
 
-# one GC instance per archive path so state persists across graph nodes
-_instances = {}
+class ContextGCGraphNode:
+    def __init__(self, model="qwen2.5", max_tokens=None, watermark=0.8, state_path=None):
+        self.gc = EvictionOrchestrator(
+            model=model, 
+            max_tokens=max_tokens, 
+            watermark=watermark, 
+            state_path=state_path
+        )
 
-
-def contextgc_node(state):
-    vectorstore = state.get("vectorstore", None)
-    model = state.get("model", "llama3.1")
-
-    # Use id(vectorstore) to persist the GC instance across nodes
-    instance_key = id(vectorstore) if vectorstore else "default"
-
-    if instance_key not in _instances:
-        _instances[instance_key] = EvictionOrchestrator(model=model, vectorstore=vectorstore)
-
-    gc = _instances[instance_key]
-    msgs = _normalize(state.get("messages", []))
-    state["messages"] = gc.process(msgs)
-    return state
-
-
-def _normalize(messages):
-    out = []
-    for msg in messages:
-        if isinstance(msg, dict):
-            out.append({
-                "id": msg.get("id", str(uuid.uuid4())),
-                "role": msg.get("role", "user"),
-                "content": msg.get("content", ""),
-                "timestamp": msg.get("timestamp", time.time()),
-                "metadata": msg.get("metadata", {}),
+    def normalize(self, messages):
+        raw_msgs = []
+        for msg in messages:
+            if isinstance(msg, SystemMessage):
+                role = "system"
+            elif isinstance(msg, HumanMessage):
+                role = "user"
+            elif isinstance(msg, AIMessage):
+                role = "assistant"
+            else:
+                role = "system"
+                
+            msg_id = getattr(msg, "id", None)
+            if not msg_id:
+                msg_id = str(uuid.uuid4())
+                
+            raw_msgs.append({
+                "id": msg_id,
+                "role": role,
+                "content": str(msg.content),
+                "timestamp": time.time(),
+                "metadata": {}
             })
-            continue
-        msg_type = getattr(msg, "type", None) or msg.__class__.__name__.lower()
-        if "human" in msg_type:
-            role = "user"
-        elif "ai" in msg_type or "assistant" in msg_type:
-            role = "assistant"
-        elif "system" in msg_type:
-            role = "system"
-        else:
-            role = "user"
-        out.append({
-            "id": getattr(msg, "id", None) or str(uuid.uuid4()),
-            "role": role,
-            "content": getattr(msg, "content", str(msg)),
-            "timestamp": time.time(),
-            "metadata": {},
-        })
-    return out
+            
+        return raw_msgs
+
+    def denormalize(self, raw_msgs):
+        lc_msgs = []
+        for m in raw_msgs:
+            if m["role"] == "system":
+                lc_msgs.append(SystemMessage(content=m["content"], id=m["id"]))
+            elif m["role"] == "user":
+                lc_msgs.append(HumanMessage(content=m["content"], id=m["id"]))
+            elif m["role"] == "assistant":
+                lc_msgs.append(AIMessage(content=m["content"], id=m["id"]))
+                
+        return lc_msgs
+
+    def __call__(self, state):
+        raw_msgs = self.normalize(state["messages"])
+        processed_msgs = self.gc.process(raw_msgs)
+        state["messages"] = self.denormalize(processed_msgs)
+        
+        return {"messages": state["messages"]}
