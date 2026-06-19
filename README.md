@@ -1,8 +1,17 @@
 # ContextGC
 
-ContextGC is an automatic context window manager for LLM chat applications. 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/khanak0509/ContextGc/main/demo.gif" width="600" alt="ContextGC Animated Demo">
+</p>
 
-If your chatbot runs long enough, it will eventually hit its token limit. Most solutions just blindly truncate old messages, causing the LLM to forget important facts (like the user's name or what they just discussed 10 turns ago). ContextGC intercepts your message array before it hits the LLM, evicts old messages, extracts the core facts into a persistent state, and uses BM25 + Vector Search to pull deeply archived messages back into context exactly when the user asks about them.
+<p align="center">
+  <a href="https://github.com/khanak0509/ContextGc/stargazers"><img src="https://img.shields.io/github/stars/khanak0509/ContextGc?style=for-the-badge&color=yellow" alt="Stars Badge"/></a>
+  <a href="https://github.com/khanak0509/ContextGc/network/members"><img src="https://img.shields.io/github/forks/khanak0509/ContextGc?style=for-the-badge&color=orange" alt="Forks Badge"/></a>
+  <a href="https://github.com/khanak0509/ContextGc/issues"><img src="https://img.shields.io/github/issues/khanak0509/ContextGc?style=for-the-badge&color=red" alt="Issues Badge"/></a>
+  <a href="https://github.com/khanak0509/ContextGc/pulls"><img src="https://img.shields.io/github/issues-pr/khanak0509/ContextGc?style=for-the-badge&color=blue" alt="Pull Requests Badge"/></a>
+</p> 
+
+If your chatbot runs long enough, it will eventually hit its token limit. To prevent the LLM from forgetting important facts (like the user's name or what was discussed 10 turns ago), ContextGC intercepts your message array before it hits the LLM, evicts old messages, extracts the core facts into a persistent state, and uses BM25 + Vector Search to pull deeply archived messages back into context exactly when the user asks about them.
 
 ## Features
 
@@ -62,7 +71,7 @@ clean_messages = gc.process(messages)
 
 ## High-Level Integrations
 
-We've included native wrappers for LangChain and LangGraph to eliminate boilerplate. You can find completely working, interactive demo files for both in the repository (`demo_langchain.py` and `demo_langgraph.py`).
+ContextGC provides native wrappers for LangChain and LangGraph to eliminate boilerplate. Completely working, interactive demo files for both frameworks can be found in the repository (`demo_langchain.py` and `demo_langgraph.py`).
 
 ### 1. LangChain Integration
 `ContextGCMemory` acts as a seamless drop-in replacement for any LangChain memory class.
