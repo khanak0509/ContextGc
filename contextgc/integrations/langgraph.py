@@ -8,13 +8,16 @@ _instances = {}
 
 
 def contextgc_node(state):
-    archive_path = state.get("archive_path", "gc.db")
+    vectorstore = state.get("vectorstore", None)
     model = state.get("model", "llama3.1")
 
-    if archive_path not in _instances:
-        _instances[archive_path] = EvictionOrchestrator(model=model, archive_path=archive_path)
+    # Use id(vectorstore) to persist the GC instance across nodes
+    instance_key = id(vectorstore) if vectorstore else "default"
 
-    gc = _instances[archive_path]
+    if instance_key not in _instances:
+        _instances[instance_key] = EvictionOrchestrator(model=model, vectorstore=vectorstore)
+
+    gc = _instances[instance_key]
     msgs = _normalize(state.get("messages", []))
     state["messages"] = gc.process(msgs)
     return state

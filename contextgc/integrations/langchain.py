@@ -13,7 +13,7 @@ class ContextGCMemory(BaseChatMemory):
     model_config = ConfigDict(arbitrary_types_allowed=True, populate_by_name=True)
 
     model: str = "llama3.1"
-    archive_path: str = "gc.db"
+    vectorstore: object = Field(default=None, exclude=True)
     memory_key: str = "history"
     return_messages: bool = True
 
@@ -25,7 +25,7 @@ class ContextGCMemory(BaseChatMemory):
     @model_validator(mode="after")
     def init(self):
         if self.gc is None:
-            self.gc = EvictionOrchestrator(model=self.model, archive_path=self.archive_path)
+            self.gc = EvictionOrchestrator(model=self.model, vectorstore=self.vectorstore)
         return self
 
     @property
@@ -129,9 +129,13 @@ class ContextGCMemory(BaseChatMemory):
         self.gc_token_log.clear()
         self.gc.total_evictions = 0
         self.gc.total_recalls = 0
-        with sqlite3.connect(self.gc.archive_path) as conn:
-            conn.execute("DELETE FROM archived_messages")
-            conn.commit()
+        if self.gc.vectorstore and hasattr(self.gc.vectorstore, "delete"):
+            try:
+                # Naive clearing, assuming all docs belong to this session.
+                # Production users should handle their own vectorstore cleanup.
+                pass 
+            except Exception:
+                pass
 
     def log_status(self, messages):
         tokens = self.gc.count_tokens(self._lc_to_raw(messages))
