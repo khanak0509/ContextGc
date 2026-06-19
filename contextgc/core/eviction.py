@@ -1,165 +1,229 @@
 import json
 import os
 import time
-import requests
 
+from langchain_core.vectorstores import InMemoryVectorStore
 from contextgc.core.scorer import MessageScorer
 from contextgc.core.archive import MessageArchive
 from contextgc.core.compressor import MessageCompressor
 from contextgc.core.state import CoreState
 
-_limits_path = os.path.join(os.path.dirname(__file__), "..", "model_limits.json")
+limits_path = os.path.join(os.path.dirname(__file__), "..", "model_limits.json")
 try:
-    with open(_limits_path) as f:
+    with open(limits_path) as f:
         MODEL_LIMITS = json.load(f)
 except Exception:
     MODEL_LIMITS = {}
 
-
 def get_token_limit(model):
-    return MODEL_LIMITS.get(model, 32000)
-
+    if model in MODEL_LIMITS:
+        return MODEL_LIMITS[model]
+    return 32000
 
 def tok(text):
-    return max(1, int(len(text.split()) * 1.3))
-
+    words_count = len(text.split())
+    estimated_tokens = int(words_count * 1.3)
+    return max(1, estimated_tokens)
 
 class EvictionOrchestrator:
-    def __init__(self, model="llama3.2:3b", archive_path="gc.db", max_tokens=None, watermark=0.8, state_path=None):
+    def __init__(self, model="llama3.2:3b", vectorstore=None, max_tokens=None, watermark=0.8, state_path=None):
         self.model = model
-        self.archive_path = archive_path
         self.max_tokens = max_tokens
         self.watermark = watermark
         self.current_goal = "general assistance"
         self.total_evictions = 0
         self.total_recalls = 0
-        self.scorer = MessageScorer()
-        self.archive = MessageArchive(archive_path)
         self.compressor = MessageCompressor(model)
 
-        # derive state path from archive path if not given
-        sp = state_path or archive_path.replace(".db", "_state.json")
-        self.core_state = CoreState(model, sp)
+        if vectorstore is None:
+            scorer = MessageScorer()
+            embed_model = scorer.model
+            vectorstore = InMemoryVectorStore(embedding=embed_model)
+            
+        self.vectorstore = vectorstore
+        self.archive = MessageArchive(self.vectorstore)
+
+        if state_path is None:
+            state_path = "chatbot_memory_state.json"
+            
+        self.core_state = CoreState(model, state_path)
 
     def count_tokens(self, msgs):
-        return sum(tok(m["content"]) for m in msgs)
+        total = 0
+        for m in msgs:
+            total += tok(m["content"])
+        return total
 
-    def _trigger_limit(self):
-        ceiling = self.max_tokens or get_token_limit(self.model)
+    def trigger_limit(self):
+        if self.max_tokens is not None:
+            ceiling = self.max_tokens
+        else:
+            ceiling = get_token_limit(self.model)
+            
         return int(ceiling * self.watermark)
 
-    def _recall(self, msgs):
-        # find the most recent user message to use as the search query
-        user_msgs = [m for m in msgs if m["role"] == "user"]
-        if not user_msgs:
+    def recall(self, msgs):
+        user_msgs = []
+        for m in msgs:
+            if m["role"] == "user":
+                user_msgs.append(m)
+                
+        if len(user_msgs) == 0:
             return msgs
         
-        query = user_msgs[-1]["content"]
+        last_msg = user_msgs[-1]
+        query = last_msg["content"]
 
-        goal_vec = self.scorer.compute_embeddings([query])[0]
-        hits = self.archive.recall_relevant_messages(goal_vec, threshold=0.50)
-        if not hits:
+        hits = self.archive.recall_relevant_messages(query, threshold=0.50)
+        
+        if len(hits) == 0:
             return msgs
 
-        existing = {m["id"] for m in msgs}
-        recalled_ids = []
-        for item, _ in hits:
-            if item["id"] not in existing:
-                # inject after system messages
-                insert_at = next((i + 1 for i, m in enumerate(msgs) if m["role"] == "system"), 0)
-                msgs.insert(insert_at, item)
-                recalled_ids.append(item["id"])
-                self.total_recalls += 1
+        existing_ids = set()
+        for m in msgs:
+            existing_ids.add(m["id"])
+            
+        recalled_items = []
+        for item, score in hits:
+            if item["id"] not in existing_ids:
+                recalled_items.append(item)
 
-        if recalled_ids:
-            self.archive.delete_messages(recalled_ids)
+        if len(recalled_items) == 0:
+            return msgs
 
+        recalled_items.sort(key=lambda x: x.get("timestamp", 0))
+
+        memory_text = "--- RECALLED MEMORY CONTEXT ---\nThe following are past messages relevant to the current query:\n\n"
+        for item in recalled_items:
+            role_label = item["role"].upper()
+            content = item["content"]
+            memory_text += f"{role_label}: {content}\n\n"
+            
+        memory_text += "---------------------------------\n"
+
+        current_time = time.time()
+        memory_msg = {
+            "id": f"gc_recalled_{int(current_time * 1000)}",
+            "role": "system",
+            "content": memory_text,
+            "timestamp": current_time,
+            "metadata": {"gc_recalled": True}
+        }
+
+        insert_index = 0
+        for i in range(len(msgs)):
+            m = msgs[i]
+            if m["role"] == "system":
+                insert_index = i + 1
+
+        msgs.insert(insert_index, memory_msg)
+        
+        self.total_recalls += len(recalled_items)
         return msgs
 
-    def _strip_injected_state(self, msgs):
-        return [m for m in msgs if not m.get("metadata", {}).get("_gc_core_state")]
+    def strip_injected_state(self, msgs):
+        cleaned_msgs = []
+        for m in msgs:
+            meta = m.get("metadata", {})
+            if not meta.get("gc_core_state"):
+                cleaned_msgs.append(m)
+        return cleaned_msgs
 
-    def _inject_core_state(self, msgs):
+    def inject_core_state(self, msgs):
         text = self.core_state.as_system_message()
         if not text:
             return msgs
 
-        msgs = self._strip_injected_state(msgs)
+        msgs = self.strip_injected_state(msgs)
+        
+        current_time = time.time()
         state_msg = {
-            "id": "_gc_core_state",
+            "id": "gc_core_state",
             "role": "system",
             "content": text,
-            "timestamp": time.time(),
-            "metadata": {"_gc_core_state": True},
+            "timestamp": current_time,
+            "metadata": {"gc_core_state": True},
         }
-        # insert right after any original system prompts
-        insert_at = 0
-        for i, m in enumerate(msgs):
+        
+        insert_index = 0
+        for i in range(len(msgs)):
+            m = msgs[i]
             if m["role"] == "system":
-                insert_at = i + 1
+                insert_index = i + 1
             else:
                 break
-        msgs.insert(insert_at, state_msg)
+                
+        msgs.insert(insert_index, state_msg)
         return msgs
 
-    def _block_evict(self, msgs):
-        sys_msgs = [m for m in msgs if m["role"] == "system"]
-        chat_msgs = [m for m in msgs if m["role"] != "system"]
+    def block_evict(self, msgs):
+        sys_msgs = []
+        chat_msgs = []
+        
+        for m in msgs:
+            if m["role"] == "system":
+                sys_msgs.append(m)
+            else:
+                chat_msgs.append(m)
 
-        # always protect the last 6 chat messages (3 full turns)
-        protect = 6
-        if len(chat_msgs) <= protect:
-            return msgs  # nothing safe to evict
+        protect_count = 6
+        if len(chat_msgs) <= protect_count:
+            return msgs
 
-        to_evict = chat_msgs[:-protect]
-        keep = chat_msgs[-protect:]
+        to_evict = chat_msgs[:-protect_count]
+        keep = chat_msgs[-protect_count:]
 
-        # extract facts from the evicted block — this is the SOTA upgrade
-        # only calls Ollama here, not on every single turn
         self.core_state.extract_from(to_evict)
 
-        # archive all evicted messages with their embeddings for future recall
         for msg in to_evict:
-            vec = self.scorer.compute_embeddings([msg["content"]])[0]
+            msg_id = msg["id"]
+            role = msg["role"]
+            content = msg["content"]
+            timestamp = msg.get("timestamp", time.time())
+            metadata = msg.get("metadata", {})
+            
             self.archive.archive_message(
-                msg["id"], msg["role"], msg["content"],
-                vec, msg.get("timestamp", time.time()), msg.get("metadata", {}),
+                msg_id, role, content, timestamp, metadata
             )
 
         self.total_evictions += len(to_evict)
 
-        topic = self.core_state.data.current_topic or f"{len(to_evict)} turns"
+        topic = self.core_state.data.current_topic
+        if not topic:
+            topic = f"{len(to_evict)} turns"
+            
+        current_time = time.time()
         breadcrumb = {
-            "id": f"_gc_crumb_{int(time.time())}",
+            "id": f"gc_crumb_{int(current_time)}",
             "role": "system",
             "content": f"[Archived {len(to_evict)} messages — Topic: {topic}. Key facts preserved in memory above.]",
-            "timestamp": time.time(),
-            "metadata": {"_gc_breadcrumb": True},
+            "timestamp": current_time,
+            "metadata": {"gc_breadcrumb": True},
         }
 
-        return sys_msgs + [breadcrumb] + keep
+        final_msgs = []
+        final_msgs.extend(sys_msgs)
+        final_msgs.append(breadcrumb)
+        final_msgs.extend(keep)
+        
+        return final_msgs
 
     def process(self, msgs):
         msgs = list(msgs)
 
-        # 1. pull relevant archived messages back in
-        msgs = self._recall(msgs)
+        msgs = self.inject_core_state(msgs)
 
-        # 2. inject current core state so the agent always sees persistent facts
-        msgs = self._inject_core_state(msgs)
+        current_tokens = self.count_tokens(msgs)
+        limit = self.trigger_limit()
+        
+        if current_tokens > limit:
+            msgs = self.block_evict(msgs)
 
-        # 3. check if we need to evict anything
-        if self.count_tokens(msgs) <= self._trigger_limit():
-            return msgs
+            if self.core_state.data.current_topic:
+                self.current_goal = self.core_state.data.current_topic
 
-        # 4. block evict — extract facts, archive, leave breadcrumb
-        msgs = self._block_evict(msgs)
+            msgs = self.inject_core_state(msgs)
 
-        # update current_goal from the now-updated core state
-        if self.core_state.data.current_topic:
-            self.current_goal = self.core_state.data.current_topic
-
-        # 6. re-inject updated core state (now has new facts from the evicted block)
-        msgs = self._inject_core_state(msgs)
+        msgs = self.recall(msgs)
 
         return msgs
